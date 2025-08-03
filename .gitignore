@@ -38,6 +38,10 @@ reports/
 .env
 profile.json
 
+# Keep model files
+!model/transaction_classifier_improved.joblib
+!model/transaction_categorization_training_data.csv
+
 # Logs
 *.log
 logs/
