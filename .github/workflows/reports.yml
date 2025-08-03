@@ -29,6 +29,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+      with:
+        lfs: true  # Enable Git LFS for large model files
     
     - name: Set up Python
       uses: actions/setup-python@v4

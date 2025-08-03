@@ -32,15 +32,15 @@ ENV/
 *.swo
 
 # Project specific
-data/
 reports/
 *.pptx
 .env
 profile.json
 
-# Keep model files
+# Keep model and data files
 !model/transaction_classifier_improved.joblib
 !model/transaction_categorization_training_data.csv
+!data/transactions.csv
 
 # Logs
 *.log
