@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Insights</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <style>
+        .chart-container {
+            position: relative;
+            height: 60vh;
+            width: 80vw;
+            margin: auto;
+        }
+        .filters {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .summary {
+            margin: 20px;
+            padding: 20px;
+        }
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        function App() {
+            const [timeframe, setTimeframe] = React.useState('monthly');
+            const [startDate, setStartDate] = React.useState('');
+            const [endDate, setEndDate] = React.useState('');
+            const [dailyData, setDailyData] = React.useState(null);
+            const [pyodide, setPyodide] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+            const [error, setError] = React.useState(null);
+            const chartRef = React.useRef(null);
+            const chartInstance = React.useRef(null);
+
+            // Initialize Pyodide and load Python files
+            React.useEffect(() => {
+                async function loadPyodideAndFiles() {
+                    try {
+                        setLoading(true);
+                        const py = await loadPyodide();
+                        
+                        // Load required Python packages
+                        await py.loadPackage(['numpy', 'pandas', 'scikit-learn']);
+                        
+                        // Load your Python files
+                        const pythonFiles = {
+                            'parser.py': null,
+                            'categorizer.py': null,
+                            'main.py': null
+                        };
+
+                        // Fetch all files in parallel
+                        const responses = await Promise.all(
+                            Object.keys(pythonFiles).map(file => 
+                                fetch(`/${file}`).then(response => {
+                                    if (!response.ok) {
+                                        throw new Error(`Failed to load ${file}`);
+                                    }
+                                    return response.text();
+                                })
+                            )
+                        );
+
+                        // Store file contents
+                        Object.keys(pythonFiles).forEach((file, index) => {
+                            pythonFiles[file] = responses[index];
+                        });
+
+                        // Execute files in correct order
+                        await py.runPythonAsync(pythonFiles['html_parser.py']);
+                        await py.runPythonAsync(pythonFiles['categorizer.py']);
+                        await py.runPythonAsync(pythonFiles['main.py']);
+                        
+                        setPyodide(py);
+                        setLoading(false);
+                        setError(null);
+                    } catch (err) {
+                        console.error('Error loading Python:', err);
+                        setError(`Failed to load Python environment: ${err.message}`);
+                        setLoading(false);
+                    }
+                }
+                loadPyodideAndFiles();
+            }, []);
+
+            // Fetch daily range data when dates change
+            React.useEffect(() => {
+                async function fetchData() {
+                    if (pyodide && startDate && endDate) {
+                        try {
+                            setLoading(true);
+                            const result = await pyodide.runPythonAsync(`
+                                import json
+                                from main import daily_range
+                                daily_range("${startDate}", "${endDate}")
+                            `);
+                            const data = JSON.parse(result);
+                            setDailyData(data);
+                            updateDailyChart(data);
+                            setLoading(false);
+                            setError(null);
+                        } catch (err) {
+                            console.error('Error running Python code:', err);
+                            setError(`Failed to process data: ${err.message}`);
+                            setLoading(false);
+                        }
+                    }
+                }
+                fetchData();
+            }, [startDate, endDate, pyodide]);
+
+            // Update chart for daily view
+            const updateDailyChart = (data) => {
+                if (!data || !chartRef.current) return;
+
+                const ctx = chartRef.current.getContext('2d');
+                
+                if (chartInstance.current) {
+                    chartInstance.current.destroy();
+                }
+
+                // Prepare daily data
+                const dates = data.map(d => d.date);
+                const totals = data.map(d => d.total_spent);
+                const counts = data.map(d => d.total_transactions);
+
+                // Create new chart
+                chartInstance.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: 'Daily Spending (₹)',
+                                data: totals,
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                yAxisID: 'y',
+                                fill: true
+                            },
+                            {
+                                label: 'Transaction Count',
+                                data: counts,
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                yAxisID: 'y1',
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: {
+                                    display: true,
+                                    text: 'Amount (₹)'
+                                }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: {
+                                    display: true,
+                                    text: 'Number of Transactions'
+                                },
+                                grid: {
+                                    drawOnChartArea: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `Daily Spending Analysis (${startDate} to ${endDate})`
+                            }
+                        }
+                    }
+                });
+            };
+
+            return (
+                <div className="container">
+                    {loading && (
+                        <div className="loading">
+                            <div className="spinner-border text-primary" role="status">
+                                <span className="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {error && (
+                        <div className="alert alert-danger mt-3" role="alert">
+                            {error}
+                        </div>
+                    )}
+
+                    <h1 className="text-center my-4">Financial Insights</h1>
+                    
+                    <div className="filters">
+                        <div className="row">
+                            <div className="col-md-6">
+                                <label className="form-label">Start Date:</label>
+                                <input
+                                    type="date"
+                                    className="form-control"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                />
+                            </div>
+                            <div className="col-md-6">
+                                <label className="form-label">End Date:</label>
+                                <input
+                                    type="date"
+                                    className="form-control"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {dailyData && (
+                        <div className="daily-summary">
+                            <h3>Daily Summary</h3>
+                            <p>Period: {startDate} to {endDate}</p>
+                            <p>Days with Transactions: {dailyData.filter(d => d.total_transactions > 0).length}</p>
+                            <p>Total Spent: ₹{dailyData.reduce((sum, d) => sum + d.total_spent, 0).toFixed(2)}</p>
+                            
+                            <div className="mt-4">
+                                <h4>Daily Breakdown</h4>
+                                <div className="accordion">
+                                    {dailyData.filter(day => day.total_transactions > 0).map((day, idx) => (
+                                        <div className="accordion-item" key={day.date}>
+                                            <h2 className="accordion-header">
+                                                <button 
+                                                    className="accordion-button collapsed" 
+                                                    type="button" 
+                                                    data-bs-toggle="collapse" 
+                                                    data-bs-target={`#collapse-${idx}`}
+                                                >
+                                                    {day.date} - ₹{day.total_spent.toFixed(2)} ({day.total_transactions} transactions)
+                                                </button>
+                                            </h2>
+                                            <div 
+                                                id={`collapse-${idx}`} 
+                                                className="accordion-collapse collapse"
+                                            >
+                                                <div className="accordion-body">
+                                                    {day.categories.map(cat => (
+                                                        <div key={cat.name} className="mb-3">
+                                                            <h5>{cat.name}</h5>
+                                                            <p>Total: ₹{cat.total.toFixed(2)} ({cat.count} transactions)</p>
+                                                            <ul className="list-unstyled">
+                                                                {cat.transactions.map((tx, txIdx) => (
+                                                                    <li key={txIdx} className="ms-3">
+                                                                        • {tx.description} - ₹{tx.amount.toFixed(2)}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="chart-container mt-4">
+                        <canvas ref={chartRef}></canvas>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

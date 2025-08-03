@@ -1,0 +1,30 @@
+services:
+  - type: cron
+    name: weekly-financial-report
+    runtime: docker
+    schedule: "0 9 * * 1"  # Every Monday at 9 AM
+    dockerCommand: weekly
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false  # Indicates this is a secret
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: REPORT_EMAIL
+        sync: false
+
+  - type: cron
+    name: monthly-financial-report
+    runtime: docker
+    schedule: "0 9 1 * *"  # First day of every month at 9 AM
+    dockerCommand: monthly
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+      - key: REPORT_EMAIL
+        sync: false 
