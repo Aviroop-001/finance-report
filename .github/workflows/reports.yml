@@ -14,12 +14,21 @@ on:
         options:
           - monthly
           - weekly
+          - custom
       year:
         description: 'Year (YYYY) - Required for monthly report'
         required: false
         type: string
       month:
         description: 'Month (1-12) - Required for monthly report'
+        required: false
+        type: string
+      start_date:
+        description: 'Start date (YYYY-MM-DD) - Required for custom range'
+        required: false
+        type: string
+      end_date:
+        description: 'End date (YYYY-MM-DD) - Required for custom range'
         required: false
         type: string
 
@@ -59,8 +68,15 @@ jobs:
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
       run: |
-        # Run with insights enabled
-        python automated_reports.py monthly --insights
+        # Get current month's dates
+        YEAR=$(date +%Y)
+        MONTH=$(date +%m)
+        LAST_DAY=$(date -d "$YEAR-$MONTH-01 +1 month -1 day" +%d)
+        START_DATE="$YEAR-$MONTH-01"
+        END_DATE="$YEAR-$MONTH-$LAST_DAY"
+        
+        # Generate report with insights
+        python main.py create_ppt --start-date $START_DATE --end-date $END_DATE --output "monthly_report_${START_DATE}.pptx" --email $REPORT_EMAIL --insights
         
     - name: Run on-demand monthly report
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.report_type == 'monthly' && github.event.inputs.year != '' && github.event.inputs.month != ''
@@ -70,5 +86,26 @@ jobs:
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
       run: |
-        # Run with insights enabled and specific month
-        python main.py monthly --year ${{ github.event.inputs.year }} --month ${{ github.event.inputs.month }} --insights 
+        # Calculate start and end dates
+        YEAR=${{ github.event.inputs.year }}
+        MONTH=${{ github.event.inputs.month }}
+        LAST_DAY=$(date -d "$YEAR-$MONTH-01 +1 month -1 day" +%d)
+        START_DATE="$YEAR-$MONTH-01"
+        END_DATE="$YEAR-$MONTH-$LAST_DAY"
+        
+        # Generate report with insights
+        python main.py create_ppt --start-date $START_DATE --end-date $END_DATE --output "monthly_report_${START_DATE}.pptx" --email $REPORT_EMAIL --insights
+
+    - name: Run custom date range report
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.report_type == 'custom' && github.event.inputs.start_date != '' && github.event.inputs.end_date != ''
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        GMAIL_USER: ${{ secrets.GMAIL_USER }}
+        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+      run: |
+        START_DATE=${{ github.event.inputs.start_date }}
+        END_DATE=${{ github.event.inputs.end_date }}
+        
+        # Generate report with insights
+        python main.py create_ppt --start-date $START_DATE --end-date $END_DATE --output "custom_report_${START_DATE}_to_${END_DATE}.pptx" --email $REPORT_EMAIL --insights 
