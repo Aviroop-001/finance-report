@@ -51,14 +51,16 @@ jobs:
         REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
       run: python automated_reports.py weekly
         
-    - name: Run monthly report
-      if: github.event.schedule == '0 9 1 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.report_type == 'monthly')
+    - name: Run scheduled monthly report
+      if: github.event.schedule == '0 9 1 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.report_type == 'monthly' && github.event.inputs.year == '' && github.event.inputs.month == '')
       env:
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         GMAIL_USER: ${{ secrets.GMAIL_USER }}
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
-      run: python automated_reports.py monthly
+      run: |
+        # Run with insights enabled
+        python automated_reports.py monthly --insights
         
     - name: Run on-demand monthly report
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.report_type == 'monthly' && github.event.inputs.year != '' && github.event.inputs.month != ''
@@ -67,4 +69,6 @@ jobs:
         GMAIL_USER: ${{ secrets.GMAIL_USER }}
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
-      run: python main.py monthly --year ${{ github.event.inputs.year }} --month ${{ github.event.inputs.month }} 
+      run: |
+        # Run with insights enabled and specific month
+        python main.py monthly --year ${{ github.event.inputs.year }} --month ${{ github.event.inputs.month }} --insights 
