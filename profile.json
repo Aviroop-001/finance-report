@@ -1,0 +1,14 @@
+{
+    "monthly_income": 144000,
+    "monthly_rent": 8000,
+    "weekly_travel": 2000,
+    "weekly_groceries": 2000,
+    "city": "Bangalore",
+    "lifestyle": "moderate",
+    "relationship_status": "in_relationship",
+    "additional_info": {
+        "occupation": "Software Engineer",
+        "age": 23,
+        "savings_goal": "house_down_payment"
+    }
+} 

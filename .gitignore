@@ -35,12 +35,12 @@ ENV/
 reports/
 *.pptx
 .env
-profile.json
 
 # Keep model and data files
 !model/transaction_classifier_improved.joblib
 !model/transaction_categorization_training_data.csv
 !data/transactions.csv
+!profile.json
 
 # Logs
 *.log
